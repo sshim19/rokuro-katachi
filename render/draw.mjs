@@ -5,6 +5,7 @@
 
 import * as constants from "../engine/constants.mjs";
 import { drawFx, revealZoom } from "./fx.mjs";
+import { drawMotionGuides } from "./hand-guides.mjs";
 
 export const VIEW_W = constants.VIEW_W ?? 844;
 export const VIEW_H = constants.VIEW_H ?? 390;
@@ -833,6 +834,7 @@ export function drawScene(ctx, state, opts = {}) {
   drawProfileLine(ctx, view, targetR, targetH, 0.78);
   // ヘラは見本の線のさらに上。先端と当たりが常に見える。
   if (showGuides) drawStick(ctx, view, rightPos, rightPos.active, !!state?.hintRight);
+  if (showGuides) drawMotionGuides(ctx, view, state, rings, H);
   drawSampleInset(ctx, view, targetR, targetH);
 
   drawFx(ctx, fx, { ...view, reducedMotion: reduced }, state);
