@@ -474,14 +474,15 @@ function stopLoops(sfx, hard = false) {
   sfx.scrapeGain = null;
 }
 
-function syncLoops(sfx, state) {
+function syncLoops(sfx, state, opts = {}) {
   if (!sfx.ctx || sfx.muted) {
     if (sfx.humGain) stopLoops(sfx, false);
     return;
   }
   const playing = state?.status === "playing" && (state?.phase === "place" || state?.phase === "throw");
   const omega = Math.max(0, Number(state?.left?.omega) || 0);
-  const rightOn = !!(state?.right?.active) && state?.phase === "throw";
+  // ヘラの先が土に当たっているときだけ、湿った削り音を乗せる。
+  const rightOn = !!(opts.contact ?? state?.right?.active) && state?.phase === "throw";
   if (!playing || omega < 0.04) {
     if (sfx.humGain) {
       const t = sfx.ctx.currentTime;
@@ -506,14 +507,15 @@ function syncLoops(sfx, state) {
  * state の差分を見て効果音を鳴らす。成形中のハミングはループで追従する。
  * @param {object} sfx
  * @param {object} state
+ * @param {{ contact?: boolean }} [opts]
  */
-export function syncSound(sfx, state) {
+export function syncSound(sfx, state, opts = {}) {
   if (!sfx) return null;
   const ev = soundEvent(sfx.prev, state);
   sfx.prev = snapshot(state);
   if (sfx.ctx && !sfx.muted) {
     try {
-      syncLoops(sfx, state);
+      syncLoops(sfx, state, opts);
       if (ev?.type === "place") playPlace(sfx);
       else if (ev?.type === "wobble") playWobble(sfx, ev);
       else if (ev?.type === "slump") playSlump(sfx);

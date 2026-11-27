@@ -4,6 +4,7 @@
  */
 
 import * as constants from "../engine/constants.mjs";
+import { radiusAtHeight } from "../engine/profile.mjs";
 import { dailyCondition, formatScore, gradeCallout } from "./share.mjs";
 
 export const JUDGE_BALLOON_OFFSET = constants.JUDGE_BALLOON_OFFSET ?? 70;
@@ -13,7 +14,10 @@ export const PROFILE_AXIS_X = constants.PROFILE_AXIS_X ?? constants.RIGHT_AXIS_X
 export const PROFILE_BASE_Y = constants.PROFILE_BASE_Y ?? constants.RIGHT_BASE_Y ?? 348;
 export const PROFILE_H_SCALE = constants.PROFILE_H_SCALE ?? constants.HEIGHT_SCALE ?? 1.15;
 
-const SPRAY_CAP = 22;
+const SPRAY_CAP = 26;
+const TOOL_DX = constants.TOOL_DX ?? -76;
+const TOOL_DY = constants.TOOL_DY ?? -24;
+const SHAVING_COLORS = { soft: "#a07c60", normal: "#8e6a50", firm: "#7a5c46" };
 const TRAIL_CAP = 6;
 const FONT = `"Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif`;
 const WOBBLE_E = constants.WOBBLE_CALLOUT_E ?? 8;
@@ -81,25 +85,36 @@ function spawnBalloons(fx, state) {
   });
 }
 
-function addSpray(fx, state, reduced) {
+/** ヘラの先が壁に当たっているか。先端の断面座標と、その高さの壁の半径を比べる。 */
+export function tipContact(state, right) {
+  if (!right?.active || !Number.isFinite(right.x) || !Number.isFinite(right.y)) return null;
+  const tipX = Number(right.x) + TOOL_DX;
+  const tipY = Number(right.y) + TOOL_DY;
+  const H = Number(state?.H) || 0;
+  const h = (PROFILE_BASE_Y - tipY) / PROFILE_H_SCALE;
+  if (!(H > 0) || h < -4 || h > H + 4) return null;
+  const wallR = radiusAtHeight(state?.rings || [], H, Math.min(Math.max(h, 0), H));
+  const tipR = tipX - PROFILE_AXIS_X;
+  if (tipR > wallR + 5) return null;
+  return { x: PROFILE_AXIS_X + Math.max(wallR, 0), y: tipY, depth: Math.max(0, wallR - tipR) };
+}
+
+/** 削りくず: 当たり点から外へはじける細い土の帯。 */
+function addShaving(fx, contact, clay, reduced) {
   const cap = reduced ? 8 : SPRAY_CAP;
   if (fx.spray.length >= cap) return;
-  if (Math.random() > 0.55) return;
-  const H = Number(state?.H) || 52;
-  const handY = state?._handY;
-  const x = PROFILE_AXIS_X + 18 + Math.random() * 36;
-  const y =
-    Number.isFinite(handY)
-      ? handY
-      : PROFILE_BASE_Y - (0.2 + Math.random() * 0.6) * H * PROFILE_H_SCALE;
+  if (Math.random() > 0.6) return;
   fx.spray.push({
-    x,
-    y,
-    vx: 12 + Math.random() * 28,
-    vy: -(18 + Math.random() * 30),
-    r: 1.4 + Math.random() * 2.2,
-    life: 0.35 + Math.random() * 0.35,
-    max: 0.7,
+    x: contact.x + Math.random() * 2,
+    y: contact.y + (Math.random() - 0.5) * 4,
+    vx: 26 + Math.random() * 46,
+    vy: -(14 + Math.random() * 36),
+    r: 2.2 + Math.random() * 2.6 + Math.min(2, contact.depth * 0.06),
+    rot: Math.random() * Math.PI * 2,
+    spin: (Math.random() - 0.5) * 14,
+    color: SHAVING_COLORS[clay] || SHAVING_COLORS.normal,
+    life: 0.4 + Math.random() * 0.35,
+    max: 0.75,
   });
 }
 
@@ -162,14 +177,13 @@ export function syncFx(fx, state, dt, opts = {}) {
     spawnBalloons(fx, state);
   }
 
-  // 水飛沫は右が引いているときだけ。描画側から right を渡す。
-  const rightActive = !!(opts.right?.active);
-  if (playing && phase === "throw" && rightActive && !reduced) {
-    const rate = 14 + Math.min(10, omega * 8);
+  // 削りくずはヘラの先が回っている土に当たっているときだけ。描画側から right（親指）を渡す。
+  const contact = playing && phase === "throw" && omega > 0.12 ? tipContact(state, opts.right) : null;
+  fx.contact = contact;
+  if (contact && !reduced) {
+    const rate = 12 + Math.min(14, omega * 10) + Math.min(10, contact.depth * 0.4);
     const steps = Math.max(1, Math.round(rate * t));
-    const handY = Number(opts.right?.y);
-    const stamped = { ...state, _handY: handY };
-    for (let i = 0; i < steps; i++) addSpray(fx, stamped, reduced);
+    for (let i = 0; i < steps; i++) addShaving(fx, contact, state?.params?.clay, reduced);
   }
 
   for (let i = fx.spray.length - 1; i >= 0; i--) {
@@ -179,6 +193,7 @@ export function syncFx(fx, state, dt, opts = {}) {
     p.y += p.vy * t;
     p.vy += 80 * t;
     p.vx *= Math.exp(-t / 0.5);
+    p.rot = (Number(p.rot) || 0) + (Number(p.spin) || 0) * t;
     if (p.life <= 0) fx.spray.splice(i, 1);
   }
   if (fx.spray.length > SPRAY_CAP) fx.spray.splice(0, fx.spray.length - SPRAY_CAP);
@@ -250,10 +265,28 @@ export function drawFx(ctx, fx, view, state) {
 
   for (const p of fx.spray) {
     const u = Math.max(0, Math.min(1, p.life / (p.max || 1)));
-    ctx.fillStyle = rgba("#d8ecec", 0.18 + 0.35 * u);
+    ctx.save();
+    ctx.translate(sx(p.x), sy(p.y));
+    ctx.rotate(Number(p.rot) || 0);
+    ctx.strokeStyle = rgba(p.color || "#8e6a50", 0.35 + 0.6 * u);
+    ctx.lineWidth = Math.max(1.2, px(1.6));
+    ctx.lineCap = "round";
     ctx.beginPath();
-    ctx.ellipse(sx(p.x), sy(p.y), px(p.r * (1 + (1 - u) * 0.4)), px(p.r * 1.3), 0, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.arc(0, 0, px(p.r), 0.2, Math.PI * 1.25);
+    ctx.stroke();
+    ctx.restore();
+  }
+  // 当たり点のかすかな光（先端がどこを削っているか）
+  if (fx.contact && state?.status === "playing" && state?.phase === "throw") {
+    const c = fx.contact;
+    ctx.save();
+    ctx.strokeStyle = rgba("#fff6e6", 0.85);
+    ctx.lineWidth = Math.max(1.4, px(1.6));
+    ctx.beginPath();
+    ctx.moveTo(sx(c.x), sy(c.y - 7));
+    ctx.lineTo(sx(c.x), sy(c.y + 7));
+    ctx.stroke();
+    ctx.restore();
   }
 
   if (fx.dailyAlpha > 0.04 && state?.showDailyLine !== false) {

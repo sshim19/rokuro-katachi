@@ -31,6 +31,14 @@ export const RING_COUNT = constants.RING_COUNT ?? constants.RINGS ?? 24;
 
 export const THUMB_GUIDE_R = 22; // 直径 44wu
 
+// 右手は細い木のヘラを持つ。先端 = 親指 + (TOOL_DX, TOOL_DY)。エンジンと同じ値を使う。
+export const TOOL_DX = constants.TOOL_DX ?? -76;
+export const TOOL_DY = constants.TOOL_DY ?? -24;
+export const TOOL_TAIL = constants.TOOL_TAIL ?? 22;
+const TOOL_WOOD = "#c99a62";
+const TOOL_WOOD_DARK = "#7c5530";
+const TOOL_TIP = "#5b3d22";
+
 const WALL_A = "#efe8dc";
 const WALL_B = "#e4d9c8";
 const BENCH_A = "#b08960";
@@ -635,17 +643,88 @@ function rightThumbPos(right, rings, H) {
   if (right?.active && Number.isFinite(right.x) && Number.isFinite(right.y)) {
     return {
       x: clamp(right.x, RIGHT_X0 + 8, RIGHT_X1 - 8),
-      y: clamp(right.y, RIGHT_Y0 + 8, RIGHT_Y1 - 8),
+      y: clamp(right.y, RIGHT_Y0 + 8, VIEW_H - 4),
       active: true,
     };
   }
+  // 待機中: 先端が壁の中ほどの少し外に来る位置に親指の目安を置く。
   const midR = rings[Math.floor(rings.length * 0.55)] || 36;
   const midH = (Number(H) || 52) * 0.5;
   return {
-    x: PROFILE_AXIS_X + midR + 18,
-    y: PROFILE_BASE_Y - midH * PROFILE_H_SCALE,
+    x: PROFILE_AXIS_X + midR + 14 - TOOL_DX,
+    y: PROFILE_BASE_Y - midH * PROFILE_H_SCALE - TOOL_DY,
     active: false,
   };
+}
+
+/** 親指から左上へ伸びる細い木のヘラ。持ち手は親指の後ろへ少し出し、先端を濃く細くする。 */
+function drawStick(ctx, view, thumb, active, hint) {
+  const tipX = thumb.x + TOOL_DX;
+  const tipY = thumb.y + TOOL_DY;
+  const len = Math.hypot(TOOL_DX, TOOL_DY) || 1;
+  const ux = TOOL_DX / len;
+  const uy = TOOL_DY / len;
+  const nx = -uy;
+  const ny = ux;
+  const tailX = thumb.x - ux * TOOL_TAIL;
+  const tailY = thumb.y - uy * TOOL_TAIL;
+  const alpha = active ? 1 : hint ? 0.7 : 0.45;
+  const wTail = 3.4;
+  const wTip = 1.3;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  // 影
+  ctx.fillStyle = rgba("#2a1d12", 0.18);
+  ctx.beginPath();
+  ctx.moveTo(view.sx(tailX + nx * wTail + 2), view.sy(tailY + ny * wTail + 3));
+  ctx.lineTo(view.sx(tipX + nx * wTip + 2), view.sy(tipY + ny * wTip + 3));
+  ctx.lineTo(view.sx(tipX - nx * wTip + 2), view.sy(tipY - ny * wTip + 3));
+  ctx.lineTo(view.sx(tailX - nx * wTail + 2), view.sy(tailY - ny * wTail + 3));
+  ctx.closePath();
+  ctx.fill();
+  // 木の柄（先へ向かって細くなる）
+  const grad = ctx.createLinearGradient(
+    view.sx(tailX + nx * wTail),
+    view.sy(tailY + ny * wTail),
+    view.sx(tailX - nx * wTail),
+    view.sy(tailY - ny * wTail),
+  );
+  grad.addColorStop(0, "#e2bd8a");
+  grad.addColorStop(0.5, TOOL_WOOD);
+  grad.addColorStop(1, "#a37444");
+  ctx.fillStyle = grad;
+  ctx.strokeStyle = rgba(TOOL_WOOD_DARK, 0.9);
+  ctx.lineWidth = Math.max(1, view.px(0.9));
+  ctx.beginPath();
+  ctx.moveTo(view.sx(tailX + nx * wTail), view.sy(tailY + ny * wTail));
+  ctx.lineTo(view.sx(tipX + nx * wTip), view.sy(tipY + ny * wTip));
+  ctx.lineTo(view.sx(tipX - nx * wTip), view.sy(tipY - ny * wTip));
+  ctx.lineTo(view.sx(tailX - nx * wTail), view.sy(tailY - ny * wTail));
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // 先端の削り面
+  const edge = 12;
+  const ex = tipX - ux * edge;
+  const ey = tipY - uy * edge;
+  const wEdge = wTip + (wTail - wTip) * (edge / (len + TOOL_TAIL));
+  ctx.fillStyle = TOOL_TIP;
+  ctx.beginPath();
+  ctx.moveTo(view.sx(ex + nx * wEdge), view.sy(ey + ny * wEdge));
+  ctx.lineTo(view.sx(tipX + nx * wTip), view.sy(tipY + ny * wTip));
+  ctx.lineTo(view.sx(tipX - nx * wTip), view.sy(tipY - ny * wTip));
+  ctx.lineTo(view.sx(ex - nx * wEdge), view.sy(ey - ny * wEdge));
+  ctx.closePath();
+  ctx.fill();
+  // 当たり点
+  ctx.beginPath();
+  ctx.arc(view.sx(tipX), view.sy(tipY), view.px(active ? 3.2 : 2.6), 0, Math.PI * 2);
+  ctx.fillStyle = rgba("#fff6e6", active ? 0.95 : 0.7);
+  ctx.fill();
+  ctx.lineWidth = Math.max(1.2, view.px(1.4));
+  ctx.strokeStyle = rgba(INK, active ? 0.85 : 0.55);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawThumbGuide(ctx, view, x, y, active, hint) {
@@ -752,6 +831,8 @@ export function drawScene(ctx, state, opts = {}) {
 
   // 見本の線は指の上に描き、途切れないようにする
   drawProfileLine(ctx, view, targetR, targetH, 0.78);
+  // ヘラは見本の線のさらに上。先端と当たりが常に見える。
+  if (showGuides) drawStick(ctx, view, rightPos, rightPos.active, !!state?.hintRight);
   drawSampleInset(ctx, view, targetR, targetH);
 
   drawFx(ctx, fx, { ...view, reducedMotion: reduced }, state);
