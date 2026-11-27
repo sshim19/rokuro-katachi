@@ -846,3 +846,258 @@ function overlayFocusY(state) {
   const vis = Math.max(H, tH) * PROFILE_H_SCALE;
   return PROFILE_BASE_Y - vis / 2;
 }
+
+
+/**
+ * 結果画面用。完成した器を土色の回転体として描き、同じ縮尺で見本を破線で重ねる。
+ * 論理座標は使わず、キャンバスの CSS ピクセルで収める。clientWidth が小さいときは何もしない。
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {HTMLCanvasElement} canvas
+ * @param {{ rings?: number[], H?: number, targetR?: number[], targetH?: number, clay?: string, e?: number, ePhase?: number }} [piece]
+ */
+export function drawResultPiece(ctx, canvas, piece = {}) {
+  const cssW = Math.max(0, canvas.clientWidth || 0);
+  const cssH = Math.max(0, canvas.clientHeight || 0);
+  if (cssW < 8 || cssH < 8) return;
+  const dpr = Math.min((typeof window !== "undefined" && window.devicePixelRatio) || 1, 2.5);
+  const bw = Math.round(cssW * dpr);
+  const bh = Math.round(cssH * dpr);
+  if (canvas.width !== bw || canvas.height !== bh) {
+    canvas.width = bw;
+    canvas.height = bh;
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cssW, cssH);
+
+  const rings = ringList(piece.rings, piece.H);
+  const H = Math.max(8, Number(piece.H) || 52);
+  const targetRings = ringList(piece.targetR, piece.targetH);
+  const targetH = Math.max(8, Number(piece.targetH) || H);
+  const colors = clayColors(piece.clay);
+  const off = wobbleOffset(Number(piece.e) || 0, Number(piece.ePhase) || 0);
+  const lean = Math.max(-0.16, Math.min(0.16, off.lean || 0));
+
+  const labelTop = Math.max(26, cssH * 0.09);
+  const rimPad = Math.max(10, cssH * 0.03);
+  const labelBot = Math.max(20, cssH * 0.07);
+  const plinth = Math.max(28, cssH * 0.1);
+  const padX = Math.max(14, cssW * 0.06);
+  const availW = Math.max(8, cssW - padX * 2);
+  const availH = Math.max(8, cssH - labelTop - rimPad - plinth - labelBot);
+  const maxR = Math.max(maxRing(rings), maxRing(targetRings), 12);
+  const maxHH = Math.max(H, targetH, 16);
+  const scale = Math.min(availH / maxHH, availW / 2 / (maxR + 8));
+  const cx = cssW / 2;
+  const baseY = labelTop + rimPad + availH;
+  const eX = Math.max(-22, Math.min(22, off.x * scale));
+
+  drawResultPlinth(ctx, cx, baseY, Math.max(maxR * scale + 10, 36));
+
+  ctx.save();
+  if (lean) {
+    ctx.translate(cx, baseY);
+    ctx.rotate(lean);
+    ctx.translate(-cx, -baseY);
+  }
+  fillResultPot(ctx, rings, H, cx, baseY, scale, eX, colors);
+  ctx.restore();
+
+  // 見本は直立のまま重ね、差が見えるようにする
+  strokeResultOutline(ctx, targetRings, targetH, cx, baseY, scale, 0);
+
+  ctx.save();
+  ctx.fillStyle = rgba(INK, 0.86);
+  ctx.font = `700 ${Math.max(12, Math.min(16, cssW * 0.048))}px ${FONT}`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  ctx.fillText("あなたの器", cx, Math.max(6, (labelTop - 4) * 0.35));
+
+  const midH = targetH * 0.62;
+  const midI = Math.min(targetRings.length - 1, Math.max(0, Math.round((midH / Math.max(targetH, 1)) * targetRings.length - 0.5)));
+  const midR = (targetRings[midI] || maxR) * scale;
+  const labelX = Math.min(cssW - 28, cx + midR + Math.max(10, 14 * (scale / 1.2)));
+  const labelY = baseY - midH * scale;
+  ctx.font = `700 ${Math.max(11, Math.min(14, cssW * 0.042))}px ${FONT}`;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = rgba(INK, 0.82);
+  ctx.fillText("見本", labelX, labelY);
+  ctx.restore();
+}
+
+function pathResultPot(ctx, rings, H, cx, baseY, scale, eX) {
+  const n = rings.length;
+  const rim = rings[n - 1] || 8;
+  const mouth = Math.max(4, rim * 0.42) * scale;
+  const foot = Math.max(6, rings[0]) * scale;
+  ctx.beginPath();
+  ctx.moveTo(cx + eX + foot, baseY);
+  for (let i = 0; i < n; i++) {
+    const h = ((i + 0.5) / n) * H;
+    ctx.lineTo(cx + eX + rings[i] * scale, baseY - h * scale);
+  }
+  ctx.lineTo(cx + eX + mouth, baseY - H * scale);
+  ctx.lineTo(cx + eX - mouth, baseY - H * scale);
+  for (let i = n - 1; i >= 0; i--) {
+    const h = ((i + 0.5) / n) * H;
+    ctx.lineTo(cx + eX - rings[i] * scale, baseY - h * scale);
+  }
+  ctx.lineTo(cx + eX - foot, baseY);
+  ctx.closePath();
+}
+
+function pathResultSilhouette(ctx, rings, H, cx, baseY, scale) {
+  const n = rings.length;
+  const rim = rings[n - 1] || 8;
+  const foot = Math.max(6, rings[0]) * scale;
+  ctx.beginPath();
+  ctx.moveTo(cx + foot, baseY);
+  for (let i = 0; i < n; i++) {
+    const h = ((i + 0.5) / n) * H;
+    ctx.lineTo(cx + rings[i] * scale, baseY - h * scale);
+  }
+  ctx.lineTo(cx + rim * scale, baseY - H * scale);
+  ctx.lineTo(cx - rim * scale, baseY - H * scale);
+  for (let i = n - 1; i >= 0; i--) {
+    const h = ((i + 0.5) / n) * H;
+    ctx.lineTo(cx - rings[i] * scale, baseY - h * scale);
+  }
+  ctx.lineTo(cx - foot, baseY);
+  ctx.closePath();
+}
+
+function fillResultPot(ctx, rings, H, cx, baseY, scale, eX, colors) {
+  const n = rings.length;
+  const rim = rings[n - 1] || 8;
+  const topY = baseY - H * scale;
+  const rx = rim * scale;
+  const ry = Math.max(2.4, rx * 0.16);
+
+  pathResultPot(ctx, rings, H, cx, baseY, scale, eX);
+  const g = ctx.createLinearGradient(cx + eX - rx, baseY, cx + eX + rx * 0.85, topY);
+  g.addColorStop(0, colors.deep);
+  g.addColorStop(0.4, colors.body);
+  g.addColorStop(0.72, colors.hi);
+  g.addColorStop(1, colors.body);
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.strokeStyle = rgba(colors.deep, 0.55);
+  ctx.lineWidth = Math.max(1, scale * 1.05);
+  ctx.stroke();
+
+  if (colors.wet > 0.05) {
+    ctx.save();
+    pathResultPot(ctx, rings, H, cx, baseY, scale, eX);
+    ctx.clip();
+    const hg = ctx.createLinearGradient(cx + eX - rx * 0.3, topY + (baseY - topY) * 0.15, cx + eX + rx * 0.15, baseY - (baseY - topY) * 0.2);
+    hg.addColorStop(0, rgba("#efe4d4", colors.wet * 0.55));
+    hg.addColorStop(1, rgba("#efe4d4", 0));
+    ctx.fillStyle = hg;
+    ctx.fillRect(cx + eX - rx * 1.3, topY - 8, rx * 2.6, baseY - topY + 16);
+    ctx.restore();
+  }
+
+  ctx.save();
+  pathResultPot(ctx, rings, H, cx, baseY, scale, eX);
+  ctx.clip();
+  ctx.strokeStyle = rgba(colors.deep, 0.2);
+  ctx.lineWidth = Math.max(0.7, scale * 0.85);
+  for (let i = 2; i < n; i += 3) {
+    const h = ((i + 0.5) / n) * H;
+    const y = baseY - h * scale;
+    const r = rings[i] * scale;
+    ctx.beginPath();
+    ctx.ellipse(cx + eX, y, r, Math.max(2, r * 0.09), 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // 口の内側と縁
+  ctx.beginPath();
+  ctx.ellipse(cx + eX, topY, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fillStyle = rgba(colors.deep, 0.92);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(cx + eX, topY, Math.max(3, rx * 0.42), Math.max(1.4, ry * 0.42), 0, 0, Math.PI * 2);
+  ctx.fillStyle = rgba("#2a1c14", 0.55);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(cx + eX, topY, rx, ry, 0, 0, Math.PI * 2);
+  ctx.strokeStyle = rgba(colors.hi, 0.75);
+  ctx.lineWidth = Math.max(1, scale * 1.15);
+  ctx.stroke();
+}
+
+function strokeResultOutline(ctx, rings, H, cx, baseY, scale, eX) {
+  if (!rings || !rings.length || !(H > 0)) return;
+  const rim = rings[rings.length - 1] || 8;
+  const topY = baseY - H * scale;
+  const rx = rim * scale;
+  const ry = Math.max(2.4, rx * 0.16);
+  const dash = [Math.max(4, scale * 3.4), Math.max(3, scale * 2.6)];
+
+  const strokeBoth = (width, color) => {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.setLineDash(dash);
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    pathResultSilhouette(ctx, rings, H, cx + eX, baseY, scale);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(cx + eX, topY, rx, ry, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  };
+
+  ctx.save();
+  strokeBoth(Math.max(3.2, scale * 2.6), rgba("#f5f0e6", 0.92));
+  strokeBoth(Math.max(1.35, scale * 1.15), rgba(INK, 0.88));
+  ctx.restore();
+}
+
+function drawResultPlinth(ctx, cx, baseY, rx) {
+  const ry = Math.max(6, rx * 0.16);
+  const cy = baseY + ry * 0.15;
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + ry * 0.85, rx * 0.86, ry * 0.7, 0, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(28, 36, 48, 0.14)";
+  ctx.fill();
+
+  ctx.fillStyle = WHEEL_DARK;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + ry * 0.38, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  const g = ctx.createLinearGradient(cx, cy - ry, cx, cy + ry);
+  g.addColorStop(0, WHEEL_LIGHT);
+  g.addColorStop(0.45, WHEEL);
+  g.addColorStop(1, WHEEL_DARK);
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = rgba(BENCH_C, 0.45);
+  ctx.lineWidth = Math.max(1, rx * 0.02);
+  ctx.stroke();
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.strokeStyle = rgba(BENCH_C, 0.28);
+  ctx.lineWidth = Math.max(0.8, rx * 0.015);
+  for (const k of [0.38, 0.62, 0.82]) {
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx * k, ry * k, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.beginPath();
+  ctx.ellipse(cx, cy - ry * 0.12, rx * 0.16, ry * 0.22, 0, 0, Math.PI * 2);
+  ctx.fillStyle = rgba(BENCH_C, 0.5);
+  ctx.fill();
+  ctx.restore();
+}

@@ -5,6 +5,7 @@ import {
   gradeResult,
   titleDailyLine,
 } from "./share.mjs";
+import { drawResultPiece } from "./draw.mjs";
 
 /**
  * @param {ParentNode} [root]
@@ -35,6 +36,7 @@ export function bindScreens(root = document) {
     overBest: root.querySelector("#over-best"),
     overNewBest: root.querySelector("#over-new-best"),
     overNewToday: root.querySelector("#over-new-today"),
+    overPiece: root.querySelector("#over-piece"),
     btnRetry: root.querySelector("#btn-retry"),
     btnShareX: root.querySelector("#btn-share-x"),
     btnShareLine: root.querySelector("#btn-share-line"),
@@ -93,6 +95,23 @@ export function bindScreens(root = document) {
     hide(el.hud, false);
   }
 
+  let lastPiece = null;
+
+  function paintOverPiece(piece) {
+    const canvas = el.overPiece;
+    if (!canvas || !piece) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    drawResultPiece(ctx, canvas, piece);
+  }
+
+  function queueOverPiece(piece) {
+    lastPiece = piece;
+    const paint = () => paintOverPiece(lastPiece);
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(paint);
+    else paint();
+  }
+
   /**
    * @param {{
    *   score: number,
@@ -101,6 +120,13 @@ export function bindScreens(root = document) {
    *   bestScore: number | null,
    *   isNewBest?: boolean,
    *   isNewTodayBest?: boolean,
+   *   rings?: number[],
+   *   H?: number,
+   *   targetR?: number[],
+   *   targetH?: number,
+   *   clay?: string,
+   *   e?: number,
+   *   ePhase?: number,
    * }} data
    */
   function showOver(data) {
@@ -127,6 +153,15 @@ export function bindScreens(root = document) {
     }
     hide(el.overNewBest, !data.isNewBest);
     hide(el.overNewToday, !data.isNewTodayBest);
+    queueOverPiece({
+      rings: data.rings,
+      H: data.H,
+      targetR: data.targetR,
+      targetH: data.targetH,
+      clay: data.clay,
+      e: data.e,
+      ePhase: data.ePhase,
+    });
     focusHeading(el.overHeading);
   }
 
@@ -183,6 +218,18 @@ export function bindScreens(root = document) {
     btn.classList.toggle("is-muted", on);
     btn.setAttribute("aria-pressed", on ? "true" : "false");
     btn.setAttribute("aria-label", on ? "音を出す" : "音を消す");
+  }
+
+  if (el.overPiece && typeof ResizeObserver === "function") {
+    const ro = new ResizeObserver(() => {
+      if (el.over && !el.over.hidden && lastPiece) paintOverPiece(lastPiece);
+    });
+    ro.observe(el.overPiece);
+  }
+  if (typeof window !== "undefined") {
+    window.addEventListener("resize", () => {
+      if (el.over && !el.over.hidden && lastPiece) paintOverPiece(lastPiece);
+    });
   }
 
   return {
