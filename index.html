@@ -28,23 +28,23 @@
             <button type="button" class="btn-finish" id="btn-finish" hidden disabled aria-disabled="true">仕上げ</button>
           </header>
 
-          <canvas id="game" width="844" height="390" aria-label="プレイ画面。左でろくろを回し、右の棒で土を削って形を整えます"></canvas>
+          <canvas id="game" width="844" height="390" aria-label="プレイ画面。左の親指でろくろのまわりをなぞり、右の親指は棒の端を持って、先で土を削ります"></canvas>
 
           <div class="hud" id="play-hud" hidden>
             <p class="hud-time" id="hud-time"></p>
           </div>
 
-          <p class="hint hint-left" id="hint-left" hidden>回す</p>
-          <p class="hint hint-right" id="hint-right" hidden>棒で削る</p>
+          <p class="hint hint-left" id="hint-left" hidden>まわりをなぞる</p>
+          <p class="hint hint-right" id="hint-right" hidden>棒の先で削る</p>
 
           <section class="panel" id="screen-title">
             <h1 tabindex="-1">ろくろの形</h1>
-            <p class="lead">左の指でろくろを回して土の中心を保ち、右手の細い棒で土を削って、今日の見本に近づけます。</p>
-            <p class="rule">横向きにして、左手でろくろの速さと中心を整えます。右手の棒は、先を深く当てるほど細く削れ、上へなぞると背が伸びます。同じ日は、だれが遊んでも同じ見本です。時間が来ると、そのときの形で仕上がります。</p>
+            <p class="lead">左の親指でろくろのまわりをなぞって回し、右の親指は細い棒の端を持って、先を土に当てて削ります。今日の見本に近づけます。</p>
+            <p class="rule">横向きにして、左の親指でろくろのまわりをぐるぐるなぞります。土の脇に指を寄せると、中心が収まります。右の親指は棒の端を持ち、指から少し先の棒の先を土に当てます。先を深く当てるほど細く削れ、上へなぞると背が伸びます。速さが安定して中心が出ていると、形がきれいに整います。振れたまま削ると、ゆがみが残ります。同じ日は、だれが遊んでも同じ見本です。時間が来ると、そのときの形で仕上がります。</p>
             <p class="meta" id="title-daily">今日は、土はふつう。</p>
             <p class="meta" id="title-date">今日の見本</p>
             <p class="meta" id="title-record">記録はまだありません</p>
-            <button type="button" class="action" id="btn-start">挽く</button>
+            <button type="button" class="action" id="btn-start">はじめる</button>
           </section>
 
           <section class="panel" id="screen-over" hidden>
