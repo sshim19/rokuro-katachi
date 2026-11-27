@@ -13,6 +13,7 @@ import {
   clayMaxRadius,
   heightFromY,
   radiusFromX,
+  toolTip,
 } from "./constants.mjs";
 import { dailyParams } from "./daily.mjs";
 import {
@@ -46,6 +47,7 @@ function cloneState(s) {
   };
 }
 
+/** right.prevX / prevY hold the last stick-tip position (not the thumb). */
 function emptyRight() {
   return { prevX: null, prevY: null, pathLen: 0 };
 }
@@ -79,8 +81,10 @@ function updateRightTracker(s, input, dt, active) {
     s.right = emptyRight();
     return { contacting: false, hWork: 0, rDes: 0, upward: false, pathLen: 0 };
   }
-  const x = h.rightPos.x;
-  const y = h.rightPos.y;
+  // input.right is the thumb; the stick tip does the shaping.
+  const tip = toolTip(h.rightPos.x, h.rightPos.y);
+  const x = tip.x;
+  const y = tip.y;
   const hWork = heightFromY(y);
   const rDes = radiusFromX(x);
   let pathLen = Number(right.pathLen) || 0;

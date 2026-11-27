@@ -30,6 +30,14 @@ export const RIGHT_AXIS_X = PROFILE_AXIS_X;
 export const PROFILE_BASE_Y = 348;
 export const RIGHT_BASE_Y = PROFILE_BASE_Y;
 export const PROFILE_H_SCALE = 1.15;
+
+/** Right hand holds a thin shaping stick (ヘラ). The thumb grips the far end; the tip sits at
+ *  thumb + (TOOL_DX, TOOL_DY), about 80wu up-left, so the contact point is never under the finger.
+ *  With the thumb at y ≤ 370 the tip still reaches height ≈ 0; the top (H_MAX) needs thumb y ≈ 107. */
+export const TOOL_DX = -76;
+export const TOOL_DY = -24;
+/** Drawing only: the handle runs this far past the thumb, away from the tip. */
+export const TOOL_TAIL = 22;
 export const HEIGHT_SCALE = PROFILE_H_SCALE;
 
 export const PLACE_TIME = 1.4;
@@ -195,6 +203,16 @@ export function radiusFromX(x) {
 
 export function xFromRadius(r) {
   return PROFILE_AXIS_X + Number(r);
+}
+
+/** Stick tip for a right-thumb position. */
+export function toolTip(x, y) {
+  return { x: Number(x) + TOOL_DX, y: Number(y) + TOOL_DY };
+}
+
+/** Thumb position that puts the stick tip at (x, y). */
+export function thumbForTip(x, y) {
+  return { x: Number(x) - TOOL_DX, y: Number(y) - TOOL_DY };
 }
 
 export function clayMaxRadius(rings) {
