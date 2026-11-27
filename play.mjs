@@ -135,6 +135,13 @@ function finishRun(next) {
     bestScore: saved.bestScore,
     isNewBest: saved.isNewBest,
     isNewTodayBest: saved.isNewTodayBest,
+    rings: state.rings,
+    H: state.H,
+    targetR: state.params?.targetR,
+    targetH: state.params?.targetH,
+    clay: state.params?.clay,
+    e: state.e,
+    ePhase: state.ePhase,
   });
 }
 

@@ -47,16 +47,21 @@
             <button type="button" class="action" id="btn-start">はじめる</button>
           </section>
 
-          <section class="panel" id="screen-over" hidden>
-            <h1 tabindex="-1">仕上がり</h1>
-            <p class="lead" id="over-score"></p>
-            <p class="meta" id="over-grade"></p>
-            <p class="meta" id="over-today"></p>
-            <p class="meta" id="over-best"></p>
-            <p class="banner" id="over-new-best" hidden>最高記録です</p>
-            <p class="banner" id="over-new-today" hidden>今日の最高です</p>
-            <div class="actions">
-              <button type="button" class="action" id="btn-retry">もう一度</button>
+          <section class="panel panel-over" id="screen-over" hidden>
+            <div class="over-layout">
+              <figure class="over-piece">
+                <canvas id="over-piece" width="360" height="340" aria-label="あなたの器と、見本の輪郭"></canvas>
+              </figure>
+              <div class="over-copy">
+                <h1 tabindex="-1">仕上がり</h1>
+                <p class="lead" id="over-score"></p>
+                <p class="meta" id="over-grade"></p>
+                <p class="meta" id="over-today"></p>
+                <p class="meta" id="over-best"></p>
+                <p class="banner" id="over-new-best" hidden>最高記録です</p>
+                <p class="banner" id="over-new-today" hidden>今日の最高です</p>
+                <div class="actions">
+                  <button type="button" class="action" id="btn-retry">もう一度</button>
               <div class="share-row" role="group" aria-label="共有先">
                 <button type="button" class="share-btn" id="btn-share-x" aria-label="Xで共有">
                   <svg viewBox="0 0 40 40" width="44" height="44" aria-hidden="true" focusable="false" shape-rendering="geometricPrecision">
@@ -72,6 +77,8 @@
                     </g>
                   </svg>
                 </button>
+              </div>
+            </div>
               </div>
             </div>
           </section>
