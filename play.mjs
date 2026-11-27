@@ -7,13 +7,13 @@
  *   tick(state, input, dt) → 新しい state（非破壊）。dt は秒。最大 50ms。
  *   input は {
  *     left:  { active, x, y },
- *     right: { active, x, y },
+ *     right: { active, x, y },   ← 右の親指。ヘラの先は親指 + (TOOL_DX, TOOL_DY) でエンジンが求める
  *     finish: boolean,
  *     landscape: boolean
  *   }。
  *     x, y はそのフレームの論理 wu。active が false のとき x, y は無視する。
  *     finish はそのフレームの立ち上がりだけ true。
- *     landscape が false なら、tick は回す・引く・仕上げを無視する（減衰のみ）。
+ *     landscape が false なら、tick は回す・削る・仕上げを無視する（減衰のみ）。
  *   tick は input を書き換えない。
  */
 import { tick, createInitialState } from "./engine/sim.mjs";
@@ -183,7 +183,7 @@ function frame(ts) {
     const input = takeInput();
     const next = tick(state, input, dt);
     syncFx(fx, next, dt, { reducedMotion: reducedMotion(), right, left });
-    syncSound(sfx, next);
+    syncSound(sfx, next, { contact: !!fx.contact });
     if (next.status === "over") {
       finishRun(next);
     } else {
@@ -192,7 +192,7 @@ function frame(ts) {
   } else {
     if (state.status !== "over") clearPointers();
     syncFx(fx, state, dt, { reducedMotion: reducedMotion(), right, left });
-    syncSound(sfx, state);
+    syncSound(sfx, state, { contact: false });
   }
 
   paint();
